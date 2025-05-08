@@ -1,0 +1,743 @@
+---
+title: "Experiment 3 - Y-Maze"
+author: "Brent Bachman"
+date: 2025-05-02
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+library("ggpubr")
+library("lsr")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+# install.packages("ggpubr")
+# install.packages("lsr")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe called mydata
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-3-statsdata.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  # ei = energy intake
+  select(id, sex, diet, cohort, arm_entries, spontaneous_alternations) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    cohort = factor(
+      cohort,
+      levels = c(0, 1),
+      labels = c("Cohort A", "Cohort B")
+      ),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-PALM", "HFD-COCO")
+      ),
+    
+    # Recode cohort and sex using sum coding
+    cohort_sum = C(cohort, sum),
+    sex_sum    = C(sex, sum)
+    ) |>
+  
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+## Visualize
+
+### Arm Entries
+
+Let's plot the number of total arm entries.
+
+```{r}
+#| label: arm-entries-plot
+
+# Create a plot object
+arm_entries_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each gorup's number of total arm entries
+  ggplot(
+    aes(
+      x = diet, 
+      y = arm_entries, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by cohort and sex
+  facet_grid(
+    cohort ~ sex
+    ) + 
+  
+  # Plot the observed means as bars
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Arm Entries",
+    limits = c(0, 20),
+    breaks = seq(from = 0, to = 20, by = 5)
+    ) +
+  
+  # Remove x-axis title
+  labs(x = "") +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+arm_entries_plot
+```
+
+### Spontaneous Alternations
+
+Now let's plot the percentage of spontaneous alternations.
+
+```{r}
+#| label: spon-alt-plot
+
+# Create a plot object
+spon_alt_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's spontaneous alternation percentage
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = spontaneous_alternations, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex
+  facet_grid(
+    cohort ~ sex,
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Spontaneous Alternation %",
+    limits = c(0, 101),
+    breaks = seq(from = 0, to = 100, by = 25)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+spon_alt_plot
+```
+
+# Model 1
+
+To test the effects of cohort, sex, diet, and their interactions on the number of total arm entries in the y-maze, a multiple linear regression model will be built with the following predictors: cohort (treatment-coded: Cohort A = 0 and Cohort B = 1), sex (sum-coded: male = 1, female = -1), diet (treatment coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), and all the two- and three-way interactions between these predictors.
+
+```{r}
+# Build the model
+model1 <- lm(
+  arm_entries ~ cohort_sum * sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model1-fits
+
+# Add the fitted and residual values to the dataset
+model1_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model1)),
+    resids = c(residuals(model1))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model1-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model1_residuals_plot <-
+  model1_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model1_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model1-qq-plot
+
+# Create a QQ plot to check for normality
+model1_qq_plot <-
+  model1_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model1_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+#| label: model1-omnibus
+
+# Perform omnibus F tests
+model1 |> anova()
+```
+
+When predicting the number of total arm entries in the y-maze, there was a significant effect of cohort, $F(1, 61) = 14.69, p < .001$. There was *not* a significant effect of sex, $F(1, 61) = 1.07, p = .304$. There was a significant effect of diet, $F(2, 61) = 3.77, p = .029$. There was *not* a significant interaction between cohort and sex, $F(1, 61) = 0.38, p = .543$. There was a significant interaction between cohort and diet, $F(2, 61) = 3.62, p = .033$. There was *not* a significant interaction between sex and diet, $F(2, 61) = 0.16, p = .853$. There was *not* a significant three-way interaction between cohort, sex, and diet, $F(2, 61) = 0.22, p = .802$.
+
+## Summary, Reference = CHOW
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model1 |> summary()
+```
+
+The model explained 34% of the variation in the number of total arm entries in the y-maze; and, after accounting for the number of predictors in the model, it accounted for 22%, $F(11, 61) = 2.88, p = .004$.
+
+Across cohort and sex, HFD-PALM performed significantly less total arm entries than CHOW ($B = -1.42, SE = 0.61, p = .023$). However, the magnitude of the difference between HFD-PALM and CHOW was significantly greater in Cohort A ($B = -1.48, SE = 0.61, p = .018$). (Indeed, the sign of the difference was flipped in Cohort B). The magnitude of the difference between HFD-PALM and CHOW did not significantly interact with sex ($B = 0.29, SE = 0.61, p = .635$) or cohort and sex ($B = -0.39, SE = 0.61, p = .523$). Across cohort and sex, HFD-COCO did not perform a significantly different number of total arm entries than CHOW ($B = 0.13, SE = 0.62, p = .830$); and the magnitude of the difference between HFD-COCO and CHOW (or lack thereof) did not significantly interact with cohort ($B = -0.20, SE = 0.62, p = .747$), sex ($B = 0.03, SE = 0.62, p = .957$), or cohort and sex ($B = -0.30, SE = 0.62, p = .629$).
+
+## Summary, Reference = HFD-PALM
+
+To compare HFD-COCO with HFD-PALM, let's relevel the diet variable to make HFD-PALM the reference group, then refit the model and produce the summary output. (There is no need to rerun the omnibus tests, as the "total" effects are already captured, and thus the output would be identical).
+
+```{r}
+#| label: model1-palm
+
+# Relevel factors to change reference group to HFD-VS
+mydata_palm <- 
+  mydata |>
+  mutate(
+    diet = fct_relevel(diet, "HFD-PALM"), # relevel diet
+  )
+
+# Build the model
+model1_palm <- 
+  model1 |>
+  update(
+    data = mydata_palm
+  )
+
+# Produce the summary output
+model1_palm |> summary()
+```
+
+Across cohort and sex, HFD-COCO performed significantly more total arm entries than HFD-PALM ($B = 1.55, SE = 0.60, p = .012$). The magnitude of the difference between HFD-COCO and HFD-PALM was significantly greater in Cohort A ($B = 1.28, SE = 0.60, p = .037$). The magnitude of the difference between HFD-COCO and HFD-PALM did not significantly interact with sex ($B = -0.26, SE = 0.60, p = .671$) or cohort and sex ($B = 0.09, SE = 0.60, p = .882$).
+
+# Model 2
+
+To test the effects of cohort, sex, diet, and their interactions on the percentage of spontaneous alternations in the y-maze, a multiple linear regression model will be built with the following predictors: cohort (treatment-coded: Cohort A = 0 and Cohort B = 1), sex (sum-coded: male = 1, female = -1), diet (treatment coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), and all the two- and three-way interactions between these predictors.
+
+```{r}
+# Build the model
+model2 <- lm(
+  spontaneous_alternations ~ cohort * sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model2-fits
+
+# Add the fitted and residual values to the dataset
+model2_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model2)),
+    resids = c(residuals(model2))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model2-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model2_residuals_plot <-
+  model2_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model2_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model2-qq-plot
+
+# Create a QQ plot to check for normality
+model2_qq_plot <-
+  model2_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model2_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+Let's perform omnibus tests for the effects of each predictor.
+
+```{r}
+# Run omnibus tests
+model2 |> anova()
+```
+
+When predicting the percentage of spontaneous alternations in the y-maze, there *was* a significant main effect of cohort, $F(1, 61) = 7.96, p = .006$; there *was not* a significant main effect of sex, $F(1, 61) = 0.62, p = .433$; there *was not* a significant main effect of diet, $F(2, 61) = 1.22, p = .303$; there *was not* a significant two-way interaction between cohort and sex, $F(1, 61) = 0.85, p = .361$; there *was not* a significant two-way interaction between cohort and diet, $F(2, 61) = 0.29, p = .747$; there *was* a significant two-way interaction between sex and diet, $(2, 61) = 3.22, p = .047$; and there *was not* a significant three-way interaction between cohort, sex, and diet, $F(2, 61) = 3.11, p = .052$.
+
+The three-way interaction was trending towards significance. Let's compute its effect size.
+
+```{r}
+# Compute effect size
+model2 |> etaSquared()
+```
+
+## Summary, Reference = CHOW
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model2 |> summary()
+```
+
+The model explained 29% of the variance in the percentage of spontaneous alternations in the y-maze; and, after adjusting for the number of predictors, it accounted for 16%, $F(11, 61) = 2.28, p = .021$.
+
+Across cohort and sex, HFD-PALM did not exhibit a significantly different y-maze spontaneous alternation percentage than CHOW ($B = 5.63, SE = 5.50, p = .309$). However, although the difference between HFD-PALM and CHOW did not significantly interact with cohort ($B = -5.16, SE = 7.54, p = .497$), it was significantly more-negative in males than females ($B = -17.97, SE = 5.50, p = .002$); and this effect was attenuated in Cohort B ($B = 15.82, SE = 7.54, p = .040$). Across cohort and sex, HFD-COCO did not exhibit a significantly different y-maze spontaneous alternation percentage than CHOW ($B = 6.22, SE = 5.45, p = .262$); and this difference (or lack thereof) did not significantly interact with either cohort ($B = 0.12, SE = 7.68, p = .988$), sex ($B = -4.38, SE = 5.50, p = .428$), or cohort and sex ($B = -0.45, SE = 7.68, p = .954$).
+
+## Summary, Reference = HFD-PALM
+
+To compare HFD-COCO with HFD-PALM, let's relevel the diet variable to make HFD-PALM the reference group, then refit the model and produce the summary output. (There is no need to rerun the omnibus tests, as the "total" effects are already captured, and thus the output would be identical).
+
+```{r}
+#| label: model2-palm
+
+# Relevel factors to change reference group to HFD-VS
+mydata_palm <- 
+  mydata |>
+  mutate(
+    diet = fct_relevel(diet, "HFD-PALM"), # relevel diet
+  )
+
+# Build the model
+model2_palm <- 
+  model2 |>
+  update(
+    data = mydata_palm
+  )
+
+# Produce the summary output
+model2_palm |> summary()
+```
+
+Across cohort and sex, HFD-COCO did not exhibit a significantly different y-maze spontaneous alternation percentage than HFD-PALM ($B = 0.58, SE = 5.36, p = .914$). The difference between HFD-COCO and HFD-PALM was significantly more-positive in males than females ($B = 13.58, SE = 5.36, p = .014$); and this effect was attenuated in Cohort B ($B = -16.27, SE = 7.45, p = .033$).
+
+## Summary, Reference = Male
+
+To directly test whether spontaneous alternation percentage was reduced in Cohort A Male HFD-PALM relative to CHOW, let's rebuild the model with sex variable treatment coded with male as the reference group.
+
+```{r}
+#| label: model2-male
+
+# Rebuild the model with sex as treatment-coded with male as the reference group
+model2_male <- lm(
+  spontaneous_alternations ~ cohort * sex * diet,
+  data = mydata
+)
+
+model2_male |> summary()
+```
+
+Within Cohort A Males, alhough HFD-PALM performed less % spontaneous alternations than CHOW, this difference was not statistically significant ($B = -12.33, SE = 7.58, p = 0.11$).
+
+## Summary, Reference = Female
+
+To directly test whether spontaneous alternation percentage was increased in Cohort A female HFD-PALM relative to CHOW, let's rebuild the model with the sex variable treatment coded with female as the reference group.
+
+```{r}
+#| label: model2-female
+
+# Relevel factors to change reference group to Female
+mydata_female <- 
+  mydata |>
+  mutate(
+    sex = fct_relevel(sex, "Female"), # relevel diet
+  )
+
+# Build the model
+model2_female<- 
+  model2_male |>
+  update(
+    data = mydata_female
+  )
+
+# Produce the summary output
+model2_female |> summary()
+```
+
+Within Cohort A Females, HFD-PALM exhibited a significantly greater spontaneous alternation percentage in the y-maze than CHOW ($B = 23.60, SE = 7.96, p = .004$).
+
+# Communicate
+
+```{r}
+#| label: arranged-plot
+
+# Arrange both plots into a single, multi-panel figure
+arranged_plot <- 
+  ggarrange(
+    arm_entries_plot,
+    spon_alt_plot,
+    nrow = 1,
+    ncol = 2,
+    labels = c("A", "B"),
+    common.legend = TRUE
+  )
+
+# Show the plot
+arranged_plot
+```
+
+Now, let's save all the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# arm entries plot
+ggsave(
+  plot = arm_entries_plot,
+  filename = "output/experiment-3/06-y-maze/01-arm-entries.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arm entries residuals plot
+ggsave(
+  plot = model1_residuals_plot,
+  filename = "output/experiment-3/06-y-maze/02-arm-entries-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arm entries qq plot
+ggsave(
+  plot = model1_qq_plot,
+  filename = "output/experiment-3/06-y-maze/03-arm-entries-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations plot
+ggsave(
+  plot = spon_alt_plot,
+  filename = "output/experiment-3/06-y-maze/04-spontaneous-alternations-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations residuals plot
+ggsave(
+  plot = model2_residuals_plot,
+  filename = "output/experiment-3/06-y-maze/05-spontaneous-alternation-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations qq plot
+ggsave(
+  plot = model2_qq_plot,
+  filename = "output/experiment-3/06-y-maze/06-spontaneous-alternation-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arranged plot - 300 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-3/06-y-maze/07-y-maze-arranged-plot-300.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arranged plot - 1200 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-3/06-y-maze/08-y-maze-arranged-plot-1200.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+```
+
+# References

@@ -1,0 +1,887 @@
+---
+title: "Experiment 3 - iba1"
+author: "Brent Bachman"
+date: 2025-05-02
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+library("ggpubr")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+# install.packages("ggpubr")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe called mydata
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-3-statsdata-iba1.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  select(id, sex, diet, cohort, 
+         arc_iba1_number_avg, arc_iba1_density_avg,
+         ca1_iba1_number_avg, ca1_iba1_density_avg
+         ) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    cohort = factor(
+      cohort,
+      levels = c(0, 1),
+      labels = c("A", "B")
+      ),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-PALM", "HFD-COCO")
+      ),
+    
+    # Recode sex using sum coding
+    sex_sum = C(sex, sum)
+    ) |>
+  
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+## Sample Size
+
+Since some of the brain data was lost/unusable, let's compute the grouped sample sizes of the usable dataset
+
+```{r}
+#| label: sample-size-total
+
+# Compute total sample size
+mydata |> 
+  summarize(
+    count = n()
+  )
+```
+
+```{r}
+#| label: sample-size-grouped
+
+# Compute grouped sample sizes
+mydata |>
+  group_by(sex, diet) |>
+  summarize(
+    count = n()
+  )
+```
+
+Looks like the total sample size is 36 and the grouped sample sizes are 6 per group.
+
+## Visualize
+
+### ARC Number
+
+```{r}
+#| label: arc-number-plot
+
+# Create a plot object
+arc_number_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's iba1+ cell number in the ARC
+  ggplot(
+    aes(
+      x = diet, 
+      y = arc_iba1_number_avg, 
+      fill = diet,
+      )
+    ) +
+  
+  # Create a plot title
+  ggtitle(label = "ARC") +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    . ~ sex
+    ) + 
+  
+  # Plot the observed means as bars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "bar",
+    color = "black",
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2,
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the individual data points
+  geom_point(
+    aes(
+      color = diet, 
+      shape = diet
+      ),
+    position = position_jitterdodge(
+      jitter.width = 0.4,
+      jitter.height = 0,
+      dodge.width = 0.95
+      )
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Iba1+ cells per section",
+    limits = c(0, 700),
+    breaks = seq(from = 0, to = 700, by = 100)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+arc_number_plot
+```
+
+### ARC Density
+
+```{r}
+#| label: arc-density-plot
+
+# Create a plot object
+arc_density_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's iba1 cell density in the ARC
+  ggplot(
+    aes(
+      x = diet, 
+      y = arc_iba1_density_avg, 
+      fill = diet,
+      )
+    ) +
+  
+  # Create a plot title
+  ggtitle(label = "MBH") +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    . ~ sex
+    ) + 
+  
+  # Plot the observed means as bars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "bar",
+    color = "black",
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2,
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the individual data points
+  geom_point(
+    aes(
+      color = diet, 
+      shape = diet
+      ),
+    position = position_jitterdodge(
+      jitter.width = 0.4,
+      jitter.height = 0,
+      dodge.width = 0.95
+      )
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = bquote("Iba1+ cells per" ~ mm^3),
+    limits = c(0, 24000),
+    breaks = seq(from = 0, to = 24000, by = 4000)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+arc_density_plot
+```
+
+### CA1 Number
+
+```{r}
+#| label: ca1-number-plot
+
+# Create a plot object
+ca1_number_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's iba1 cell number in the ca1
+  ggplot(
+    aes(
+      x = diet, 
+      y = ca1_iba1_number_avg, 
+      fill = diet,
+      )
+    ) +
+  
+  # Create a plot title
+  ggtitle(label = "CA1") +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    . ~ sex
+    ) + 
+  
+  # Plot the observed means as bars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "bar",
+    color = "black",
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2,
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the individual data points
+  geom_point(
+    aes(
+      color = diet, 
+      shape = diet
+      ),
+    position = position_jitterdodge(
+      jitter.width = 0.4,
+      jitter.height = 0,
+      dodge.width = 0.95
+      )
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Iba1+ cells per section",
+    limits = c(0, 700),
+    breaks = seq(from = 0, to = 700, by = 100)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+ca1_number_plot
+```
+
+### CA1 Density
+
+```{r}
+#| label: ca1-density-plot
+
+# Create a plot object
+ca1_density_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's iba1+ cell density in the CA1 region
+  ggplot(
+    aes(
+      x = diet, 
+      y = ca1_iba1_density_avg, 
+      fill = diet,
+      )
+    ) +
+  
+  # Create a plot title
+  ggtitle(label = "CA1") +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    . ~ sex
+    ) + 
+  
+  # Plot the observed means as bars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "bar",
+    color = "black",
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2,
+    position = position_dodge(0.95)
+    ) +
+  
+  # Plot the individual data points
+  geom_point(
+    aes(
+      color = diet, 
+      shape = diet
+      ),
+    position = position_jitterdodge(
+      jitter.width = 0.4,
+      jitter.height = 0,
+      dodge.width = 0.95
+      )
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = bquote("Iba1+ cells per" ~ mm^3),
+    limits = c(0, 15000),
+    breaks = seq(from = 0, to = 15000, by = 3000)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+ca1_density_plot
+```
+
+# Model 1: ARC
+
+To test the effects of sex, diet, and their interaction on iba1+ cell density in the ARC, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1 and female = -1), diet (treatment coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), and the interaction between sex and diet.
+
+```{r}
+#| label: model-arc
+
+# Build the model
+model_arc <- lm(
+  arc_iba1_density_avg ~ sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model-arc-fits
+
+# Add the fitted and residual values to the dataset
+model_arc_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model_arc)),
+    resids = c(residuals(model_arc))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model-arc-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model_arc_residuals_plot <-
+  model_arc_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model_arc_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model1-qq-plot
+
+# Create a QQ plot to check for normality
+model_arc_qq_plot <-
+  model_arc_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model_arc_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+#| label: model-arc-omnibus
+
+# Perform omnibus F tests
+model_arc |> anova()
+```
+
+There were not significant effects of sex, $F(1, 30) = 0.16, p = .694$, diet, $F(2, 30) = 1.04, p = .367$, or an interaction between sex and diet, $F(2, 30) = 0.81, p = .455$.
+
+## Summary, Reference = CHOW
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model_arc |> summary()
+```
+
+The model did not explain a significant portion of the variance in iba1+ cell density in the ARC, $F(5, 30) = 0.77, R^2 = 0.11, R^2_{adj} = -0.04, p = .579$.
+
+# Model 2: CA1
+
+To test the effects of sex, diet, and their interaction on iba1+ cell density in the CA1 region, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1 and female = -1), diet (treatment coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), and the interaction between sex and diet.
+
+```{r}
+#| label: model-ca1
+
+# Build the model
+model_ca1 <- lm(
+  ca1_iba1_density_avg ~ sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model-ca1-fits
+
+# Add the fitted and residual values to the dataset
+model_ca1_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model_ca1)),
+    resids = c(residuals(model_ca1))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model-ca1-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model_ca1_residuals_plot <-
+  model_ca1_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model_ca1_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model-ca1-qq-plot
+
+# Create a QQ plot to check for normality
+model_ca1_qq_plot <-
+  model_ca1_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model_ca1_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests.
+
+```{r}
+# Perform omnibus F tests
+model_ca1 |> anova()
+```
+
+There were not significant effects of sex, $F(1, 30) = 0.04, p = .852$, diet, $F(2, 30) = 0.22, p = .802$, or an interaction between sex and diet, $F(2, 30) = 0.56, p = .579$.
+
+## Summary, Reference = CHOW
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model_ca1 |> summary()
+```
+
+The model did not explain a significant portion of the variance in iba1+ cell density in the CA1 region, $F(5, 30) = 0.32, R^2 = 0.05, R^2_{adj} = -0.11, p = .898$.
+
+# Communicate
+
+Let's combine the plots
+
+```{r}
+#| label: arranged-plot
+
+# Combine the plots for each brain region into a single, multi-panel plot
+arranged_plot <- 
+  ggarrange(
+    arc_density_plot, ca1_density_plot,
+    nrow = 1, ncol = 2,
+    # labels = c("A", "B", "C", "D"),
+    common.legend = T
+  )
+
+# Show the plot
+arranged_plot
+```
+
+Now let's save the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# MBH density plot
+ggsave(
+  plot = arc_density_plot,
+  filename = "output/experiment-3/07-iba1/01-MBH-density-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# MBH residuals plot
+ggsave(
+  plot = model_arc_residuals_plot,
+  filename = "output/experiment-3/07-iba1/02-MBH-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# MBH qq plot
+ggsave(
+  plot = model_arc_qq_plot,
+  filename = "output/experiment-3/07-iba1/03-MBH-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# CA1 plot
+ggsave(
+  plot = ca1_density_plot,
+  filename = "output/experiment-3/07-iba1/04-CA1-density-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# CA1 residuals plot
+ggsave(
+  plot = model_ca1_residuals_plot,
+  filename = "output/experiment-3/07-iba1/05-CA1-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# CA1 qq plot
+ggsave(
+  plot = model_ca1_qq_plot,
+  filename = "output/experiment-3/07-iba1/06-CA1-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arranged plot - 300 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-3/07-iba1/07-arranged-plot-300.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arranged plot - 1200 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-3/07-iba1/08-arranged-plot-1200.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 1200
+)
+```

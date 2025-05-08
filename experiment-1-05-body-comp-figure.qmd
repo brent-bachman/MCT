@@ -1,0 +1,141 @@
+---
+title: "Experiment 1 - Body Comp Figure"
+author: "Brent Bachman"
+date: 2025-05-01
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+library("ggpubr")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+# install.packages("ggpubr")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Import
+
+First, let's import all the ggplots for each body composition metric.
+
+```{r}
+#| label: energy-intake-plot
+
+# Read the rds file
+energy_intake_plot <-
+  readRDS(
+    file = "output/experiment-1/05-body-comp-figure/01-energy-intake.rds"
+    )
+
+# Show the plot
+energy_intake_plot
+```
+
+```{r}
+#| label: body-weight-plot
+
+# Read the rds file
+body_weight_plot <-
+  readRDS(
+    file = "output/experiment-1/05-body-comp-figure/02-body-weight.rds"
+    )
+
+# Show the plot
+body_weight_plot
+```
+
+```{r}
+#| label: fat-mass-plot
+
+# Read the rds file
+fat_mass_plot <-
+  readRDS(
+    file = "output/experiment-1/05-body-comp-figure/03-fat-mass.rds"
+    )
+
+# Show the plot
+fat_mass_plot
+```
+
+```{r}
+#| label: lean-mass-plot
+
+# Read the rds file
+lean_mass_plot <-
+  readRDS(
+    file = "output/experiment-1/05-body-comp-figure/04-lean-mass.rds"
+    )
+
+# Show the plot
+lean_mass_plot
+```
+
+# Arrange
+
+```{r}
+#| label: arranged-plot
+
+# Arrange the plots for each body comp metric into a single, multi-panel plot
+arranged_plot <- 
+  ggarrange(
+    energy_intake_plot,
+    body_weight_plot,
+    fat_mass_plot,
+    lean_mass_plot,
+    nrow = 2,
+    ncol = 2,
+    labels = c("A", "B", "C", "D"),
+    common.legend = TRUE
+  )
+
+# Show the plot
+arranged_plot
+```
+
+```{r}
+#| label: arranged-plot-save
+#| eval: false
+
+# Save the arranged plot at 1200 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-1/05-body-comp-figure/05-arranged-plot-1200.tiff",
+  width = 6, height = 5.5, units = "in", dpi = 1200
+  )
+
+# Save the arranged plot at 300 dpi
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-1/05-body-comp-figure/05-arranged-plot-300.tiff",
+  width = 6, height = 5.5, units = "in", dpi = 300
+  )
+```
+
+# References

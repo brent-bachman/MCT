@@ -1,0 +1,544 @@
+---
+title: "Experiment 3 - Fat Mass"
+author: "Brent Bachman"
+date: 2025-05-01
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-3-statsdata.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  # BW = body weigh
+  select(id, cohort, sex, diet, FM_m7, FM_53) |>
+  
+  # Tidy data
+  pivot_longer(
+    cols = starts_with("FM"),
+    names_to = "day",
+    values_to = "fat_mass",
+    values_drop_na = TRUE
+    ) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    cohort = factor(
+      cohort, 
+      levels = c(0, 1),
+      labels = c("Cohort A", "Cohort B")
+    ),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-PALM", "HFD-COCO")
+      ),
+    
+    # Recode sex using sum coding
+    sex_sum = C(sex, sum),
+    
+    # Compute time in weeks
+    day = parse_number(day),
+    day = if_else(
+      day == 7,
+      -7, 
+      53
+      ),
+    week = day/7,
+    .before = fat_mass
+    ) |>
+  
+  # Drop na values
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+## Visualize - line plot
+
+```{r}
+#| label: line-plot
+
+# Create a line plot of each group's fat mass over time
+line_plot <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Initialize plot parameters
+  ggplot(
+    aes(
+      x = week, 
+      y = fat_mass, 
+      color = diet, 
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex and cohort
+  facet_grid(
+    sex ~ cohort,
+    scales = "free_y"
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "point"
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.2
+    ) +
+  
+  # Plot connecting lines
+  stat_summary(
+    fun = mean,
+    geom = "line"
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange3",
+      "HFD-COCO"  = "darkorchid3"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  labs(y = "Fat Mass (g)") +
+  
+  # Change x-axis title and scale
+  scale_x_continuous(
+    name = "Time (Weeks)",
+    breaks = seq(from = -1, to = 8, by = 1)) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 0.5,
+      hjust = 0.5
+      ),
+    legend.position = "top"
+    )
+
+# Show the plot
+line_plot
+```
+
+In both cohorts, the data seem to increase over time across groups. However, it seems to increase at a faster rate for both HFD groups.
+
+# Summary
+
+First, let's calculate each subject's fat mass slope across the dietary intervention.
+
+```{r}
+#| label: model-data
+
+# Create a new data frame
+model_data <-
+  
+  # Copy the original dataframe
+  mydata |>
+
+  # Compute each subject's fat mass slope
+  group_by(id) |>
+  mutate(
+    fat_slope = 
+      (fat_mass - lag(fat_mass)) / (day - lag(day))
+  ) |>
+  ungroup() |> 
+  
+  # Select only the relevant columns
+  select(
+    id, cohort, sex, sex_sum, diet, fat_slope
+  ) |>
+  
+  # Drop na values
+  drop_na(fat_slope)
+
+# Show a summary of the data
+summary(model_data)
+```
+
+## Visualize - bar plot
+
+Let's visualize the model data.
+
+```{r}
+#| label: bar-plot
+
+# Create a plot object
+bar_plot <-
+  
+  # Call the dataset
+  model_data |>  
+  
+  # Plot each group's average energy intake
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = fat_slope, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    cohort ~ sex
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Fat Mass Slope (g/day)",
+    limits = c(-1, 4), 
+    breaks = seq(from = -1, to =  4, by = 1)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis title, text, and tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+bar_plot
+```
+
+Consistent with the earlier visualization, fat mass slope seems to be greater for HFD-PALM and, perhaps to a *slightly* lesser degree, HFD-COCO, in both sexes in both cohorts.
+
+# Model
+
+To test the effects of sex, diet, and their interaction on the linear slope of fat mass across the dietary intervention, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1 and female = -1), diet (treatment-coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), and the interaction between sex and diet.
+
+```{r}
+#| label: model
+
+# Build the model
+model <- lm(
+  fat_slope ~ sex_sum * diet, 
+  data = model_data
+  )
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model-fits
+
+# Add the fitted and residual values to the dataset
+model_fits <- 
+  model_data |>
+  mutate(
+    fits = c(fitted(model)),
+    resids = c(residuals(model))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+residuals_plot <-
+  model_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+residuals_plot
+```
+
+The data seem to be evenly distributed along the horizontal axis, indicating that the data are approximately linear; and the data seem to deviate along the y-axes (i.e., from the horizontal red line) evenly across the x-axis, indicating that the data are homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: qq-plot
+
+# Create a QQ plot to check for normality
+qq_plot <-
+  model_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot boxplots
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+qq_plot
+```
+
+The data seem to fall mostly along the red line, indicating that the data are approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+# Perform omnibus tests
+model |> anova()
+```
+
+When predicting fat mass slope across the dietary intervention, there were significant effects of sex, $F(1, 32) = 47.59, p < .001$, and diet, $F(2, 32) = 44.95, p < .001$, but not an interaction between sex and diet, $F(2, 32) = 2.30, p = .116$.
+
+## Summary, Reference = CHOW
+
+Let's probe these effects by producing the summary output.
+
+```{r}
+# Produce summary output
+model |> summary()
+```
+
+Overall, the model explained 82% of the variance in fat mass slope across the dietary intervention; and, after adjusting for the number of predictors, it explained 79%, $F(5, 32) = 28.42, R^2 = 0.82, R^2_{adj} = 0.79, p < .001$.
+
+Across the sexes, both HFD-PALM ($B = 1.04, SE = 0.12, p < .001$) and HFD-COCO ($B = 0.95, SE = 0.12, p  <.001$) gained significantly more fat mass per day than CHOW. The magnitude of the difference between CHOW and HFD-PALM ($B = 0.25, SE = 0.12, p = .045$) but not HFD-COCO ($B = 0.08, SE = 0.12, p = .506$) was significantly greater in males than females.
+
+## Summary, Reference = HFD-PALM
+
+To compare HFD-COCO with HFD-PALM, let's relevel the diet variable to make HFD-PALM the reference group, then refit the model and produce the summary output. (There is no need to rerun the omnibus tests, as the "total" effects are already captured, and thus the output would be identical).
+
+```{r}
+#| label: model-palm
+
+# Relevel factors to change reference group to HFD-VS
+data_palm <- 
+  model_data |>
+  mutate(
+    diet = fct_relevel(diet, "HFD-PALM"), # relevel diet
+  )
+
+# Build the model
+model_palm <- 
+  model |>
+  update(
+    data = data_palm
+  )
+
+# Produce the summary output
+model_palm |> summary()
+```
+
+Across the sexes, although HFD-COCO gained less fat mass per day than HFD-PALM, this difference was not statistically significant ($B = -0.09, SE = 0.12, p = .457$); and although the magnitude of this difference was greater in males than females, this difference was also not statistically significant ($B = -0.17, SE = 0.12, p = .173$).
+
+# Communicate
+
+Let's save the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# line plot
+ggsave(
+  plot = line_plot,
+  filename = "output/experiment-3/03-fat-mass/01-line-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# bar plot
+ggsave(
+  plot = bar_plot,
+  filename = "output/experiment-3/03-fat-mass/02-bar-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# residuals plot
+ggsave(
+  plot = residuals_plot,
+  filename = "output/experiment-3/03-fat-mass/03-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# qq plot
+ggsave(
+  plot = qq_plot,
+  filename = "output/experiment-3/03-fat-mass/04-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+```
+
+```{r}
+#| label: save-rds-file
+#| eval: false
+
+# Save the bar plot as an rds file to be imported later and arranged into a single multi-panel plot with all the body composition data
+saveRDS(
+  bar_plot,
+  file = "output/experiment-3/05-body-comp-figure/03-fat-mass.rds"
+)
+```
+
+# References

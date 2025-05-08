@@ -1,0 +1,624 @@
+---
+title: "Experiment 2 - Y-Maze"
+author: "Brent Bachman"
+date: 2025-05-01
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+library("ggpubr")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+# install.packages("ggpubr")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe called mydata
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-2-statsdata.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  select(id, sex, diet, arm_entries, spontaneous_alternations) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-VS", "HFD-C8/10")
+      ),
+    
+    # Recode sex using sum coding
+    sex_sum = C(sex, sum)
+    ) |>
+  
+  # Remove na values
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+## Visualize
+
+### Arm Entries
+
+Let's plot the number of total arm entries.
+
+```{r}
+#| label: plot-arm-entries
+
+# Create a plot object
+plot_arm_entries <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot energy intake over time, faceted by sex and diet
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = arm_entries, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex
+  facet_grid(
+    . ~ sex,
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-VS"    = "firebrick4",
+      "HFD-C8/10" = "dodgerblue4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "ivory3",
+      "HFD-VS"    = "firebrick2",
+      "HFD-C8/10" = "dodgerblue2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-VS"    = 16,
+      "HFD-C8/10" = 18
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Total Arm Entries",
+    limits = c(0, 25),
+    breaks = seq(from = 0, to = 25, by = 5)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+plot_arm_entries
+```
+
+From the graph, it appears that HFD-VS performed more arm entries than the other two diet groups, but only in males.
+
+### Spontaneous Alternations
+
+Now let's plot the percentage of spontaneous alternations.
+
+```{r}
+#| label: plot-spontaneous-alternations
+
+# Create a plot object
+plot_spontaneous_alternations <-
+  
+  # Call the dataset
+  mydata |>  
+  
+  # Plot each group's spontaneous alternation percentage
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = spontaneous_alternations, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex
+  facet_grid(
+    . ~ sex,
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-VS"    = "firebrick4",
+      "HFD-C8/10" = "dodgerblue4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "ivory3",
+      "HFD-VS"    = "firebrick2",
+      "HFD-C8/10" = "dodgerblue2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-VS"    = 16,
+      "HFD-C8/10" = 18
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Spontaneous Alternation %",
+    limits = c(0, 101),
+    breaks = seq(from = 0, to = 100, by = 25)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+plot_spontaneous_alternations
+```
+
+There does not appear to be any group differences in spontaneous alternation percentage, but let's test for these effects statistically.
+
+# Model 1
+
+To test the effects of sex, diet, and their interaction on the number of total arm entries in the y-maze, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1, female = -1), diet (treatment coded: CHOW = 0; HFD-VS and HFD-C8/10 = 1), and the interaction between sex and diet.
+
+```{r}
+# Build the model
+model1 <- lm(
+  arm_entries ~ sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model1-fits
+
+# Add the fitted and residual values to the dataset
+model1_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model1)),
+    resids = c(residuals(model1))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model1-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model1_residuals_plot <-
+  model1_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model1_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model1-qq-plot
+
+# Create a QQ plot to check for normality
+model1_qq_plot <-
+  model1_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model1_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+#| label: model1-omnibus
+
+# Perform omnibus F tests
+model1 |> anova()
+```
+
+There were not significant effects of sex, $F(1, 41) = 2.51, p = .121$, diet, $F(2, 41) = 1.23, p = .302$, or an interaction between sex and diet, $F(2, 41) = 1.13, p = .332$.
+
+## Reference = CHOW
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model1 |> summary()
+```
+
+The model did not explain a significant portion of the variance in the number of total arm entries in the y-maze, $F(5, 41) = 1.45, R^2 = 0.15, R^2_{adj} = 0.05, p = .228$.
+
+# Model 2
+
+To test the effects of sex, diet, and their interaction on the percentage of spontaneous alternations in the y-maze, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1, female = -1), diet (treatment coded: CHOW = 0; HFD-VS and HFD-C8/10 = 1), and the interaction between sex and diet.
+
+```{r}
+# Build the model
+model2 <- lm(
+  spontaneous_alternations ~ sex_sum * diet,
+  data = mydata
+)
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model2-fits
+
+# Add the fitted and residual values to the dataset
+model2_fits <- 
+  mydata |>
+  mutate(
+    fits = c(fitted(model2)),
+    resids = c(residuals(model2))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: model2-residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+model2_residuals_plot <-
+  model2_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model2_residuals_plot
+```
+
+The data seem to be linear and homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: model2-qq-plot
+
+# Create a QQ plot to check for normality
+model2_qq_plot <-
+  model2_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot points and qq line
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+model2_qq_plot
+```
+
+The data seem to be approximately normally distributed.
+
+## Omnibus Tests
+
+Let's perform omnibus tests for the effects of each predictor.
+
+```{r}
+# Run omnibus tests
+model2 |> anova()
+```
+
+There were not significant effects of sex, $F(1, 41) = 0.05, p = .826$, diet, $F(2, 41) = 0.11, p = .894$, or an interaction between sex and diet, $F(2, 41) = 0.59, p = .561$.
+
+Let's take a look at the summary output.
+
+```{r}
+# Produce summary output
+model2 |> summary()
+```
+
+The model did not explain a significant portion of the variance in the percentage of spontaneous alternations in the y-maze, $F(5, 41) = 0.29, R^2 = 0.03, R^2_{adj} = -0.08, p = .917$.
+
+# Communicate
+
+First, let's arrange both plots into a single, multi-panel figure.
+
+```{r}
+#| label: arranged-plot
+
+# Combine all outcome variables into one plot
+arranged_plot <- 
+  ggarrange(
+    plot_arm_entries,
+    plot_spontaneous_alternations,
+    nrow = 1,
+    ncol = 2,
+    labels = c("A", "B"),
+    common.legend = TRUE
+  )
+
+# Show the plot
+arranged_plot
+```
+
+Now, let's save all the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# arm entries plot
+ggsave(
+  plot = plot_arm_entries,
+  filename = "output/experiment-2/06-y-maze/01-arm-entries.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arm entries residuals plot
+ggsave(
+  plot = model1_residuals_plot,
+  filename = "output/experiment-2/06-y-maze/02-arm-entries-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arm entries qq plot
+ggsave(
+  plot = model1_qq_plot,
+  filename = "output/experiment-2/06-y-maze/03-arm-entries-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations plot
+ggsave(
+  plot = plot_spontaneous_alternations,
+  filename = "output/experiment-2/06-y-maze/04-spontaneous-alternations-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations residuals plot
+ggsave(
+  plot = model2_residuals_plot,
+  filename = "output/experiment-2/06-y-maze/05-spontaneous-alternation-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# spontaneous alternations qq plot
+ggsave(
+  plot = model2_qq_plot,
+  filename = "output/experiment-2/06-y-maze/06-spontaneous-alternation-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# arranged plot
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-2/06-y-maze/07-y-maze-arranged-plot-300.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+ggsave(
+  plot = arranged_plot,
+  filename = "output/experiment-2/06-y-maze/08-y-maze-arranged-plot-1200.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+```

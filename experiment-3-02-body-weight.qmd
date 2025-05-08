@@ -1,0 +1,547 @@
+---
+title: "Experiment 3 - Body Weight"
+author: "Brent Bachman"
+date: 2025-05-01
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-3-statsdata.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  # BW = body weight
+  select(id, cohort, sex, diet, BW_0:BW_53) |>
+  
+  # Tidy data
+  pivot_longer(
+    cols = starts_with("BW"),
+    names_to = "day",
+    values_to = "body_weight",
+    values_drop_na = TRUE
+    ) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    cohort = factor(
+      cohort, 
+      levels = c(0, 1),
+      labels = c("Cohort A", "Cohort B")
+    ),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-PALM", "HFD-COCO")
+      ),
+    
+    # Recode cohort and sex using sum coding
+   cohort_sum = C(cohort, sum),
+   sex_sum    = C(sex, sum),
+    
+    # Compute time in weeks
+    day = parse_number(day),
+    week = day/7,
+    .before = body_weight
+    ) |>
+  
+  # Drop na values
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+## Visualize - line plot
+
+```{r}
+#| label: line-plot
+
+# Create a line plot of each group's body weight over time
+line_plot <-
+  
+  # Call the dataframe
+  mydata |> 
+  
+  # Initialize plot parameters
+  ggplot(
+    aes(
+      x = week, 
+      y = body_weight, 
+      color = diet, 
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex and cohort
+  facet_grid(
+    sex ~ cohort,
+    scales = "free_y"
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "point"
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar"
+    ) +
+  
+  # Plot connecting lines
+  stat_summary(
+    fun = mean,
+    geom = "line"
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange3",
+      "HFD-COCO"  = "darkorchid3"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title and scale
+  labs(y = "Body Weight (g)") +
+  
+  # Change x-axis title and scale
+  scale_x_continuous(
+    name = "Time (Weeks)",
+    breaks = seq(from = 0, to = 8, by = 1)) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 0.5,
+      hjust = 0.5
+      ),
+    legend.position = "top"
+    )
+
+# Show the plot
+line_plot
+```
+
+In both cohorts, the data seem to increase over time across groups. However, it seems to increase at a faster rate for both HFD groups.
+
+# Summarize
+
+Let's compute each subject's body weight slope over the course of the dietary intervention.
+
+```{r}
+#| label: model-data
+
+# Create a new data frame
+model_data <-
+  
+  # Copy the original dataframe
+  mydata |>
+  
+  # Filter the data to include only days 0 or 53
+  filter(day == 0 | day == 53) |>
+
+  # Compute each subject's body weight slope
+  group_by(id) |>
+  mutate(
+    body_weight_slope = 
+      (body_weight - lag(body_weight)) / (day - lag(day))
+  ) |>
+  ungroup() |> 
+  
+  # Select only the relevant columns
+  select(
+    id, cohort, cohort_sum, sex, sex_sum, diet, body_weight_slope
+  ) |>
+  
+  # Drop na values
+  drop_na(body_weight_slope)
+
+# Show a summary of the data
+summary(model_data)
+```
+
+## Visualize - bar plot
+
+Let's visualize the model data.
+
+```{r}
+#| label: bar-plot
+
+# Create a bar plot of each group's body weight slope
+bar_plot <-
+  
+  # Call the dataset
+  model_data |>  
+  
+  # Plot each group's average energy intake
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = body_weight_slope, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex (rows)
+  facet_grid(
+    sex ~ cohort
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Body Weight Slope (g/day)",
+    limits = c(-1, 4), 
+    breaks = seq(from = -1, to =  4, by = 1)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis title, text, and tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+bar_plot
+```
+
+Consistent with the earlier visualization, body weight slope seems to be greater for HFD-PALM and, perhaps to a *slightly* lesser degree, HFD-COCO, in both sexes in both cohorts.
+
+# Model
+
+To test the effects of sex, diet, and their interaction on body weight slope across the dietary intervention, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1 and female = -1), diet (treatment-coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), cohort (treatment-coded: Cohort A = 0 and Cohort B = 1), as well as the two- and three-way interactions between each predictor.
+
+```{r}
+#| label: model
+
+# Build the model
+model <- 
+  lm(
+    body_weight_slope ~ cohort_sum * sex_sum * diet, 
+    data = model_data
+  )
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model-fits
+
+# Add the fitted and residual values to the dataset
+model_fits <- 
+  model_data |>
+  mutate(
+    fits = c(fitted(model)),
+    resids = c(residuals(model))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+residuals_plot <-
+  model_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+residuals_plot
+```
+
+The data seem to be evenly distributed along the horizontal axis, indicating that the data are approximately linear; and the data seem to deviate along the y-axes (i.e., from the horizontal red line) evenly across the x-axis, indicating that the data are homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: qq-plot
+
+# Create a QQ plot to check for normality
+qq_plot <-
+  model_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot boxplots
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+qq_plot
+```
+
+The data seem to fall mostly along the red line, indicating that the data are approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+# Perform omnibus tests
+model |> anova()
+```
+
+When predicting body weight slope over the course of the dietary intervention, there were significant effects of cohort, $F(1, 62) = 25.37, p < .001$, sex, $F(1, 62) = 77.91, p < .001$, diet, $F(2, 62) = 45.57, p < .001$; there were *not* significant effects of the two-way interactions between cohort and sex, $F(1, 62) = 0.05, p = .826$, or cohort and diet, $F(2, 62) = 0.63, p = .537$; there was a significant two-way interaction between sex and diet, $F(2, 62) = 7.91, p < .001$; and there was *not* a significant three-way interaction between cohort, sex, and diet, $F(2, 62) = 1.43, p = .248$.
+
+## Summary, Reference = CHOW
+
+Let's probe these effects by producing the summary output.
+
+```{r}
+# Produce summary output
+model |> summary()
+```
+
+Overall, the model explained 78% of the variance in body weight slope across the dietary intervention; and, after adjusting for the number of predictors, it explained 74%, $F(11, 62) = 19.70, R^2 = 0.78, R^2_{adj} = 0.74, p < .001$.
+
+Across cohorts and across the sexes, HFD-PALM gained significantly more body weight per day than CHOW ($B = 1.09, SE = 0.12, p < .001$); and the magnitude of the difference between HFD-PALM and CHOW was significantly greater in males than females ($B = 0.46, SE = 0.12, p < .001$). The magnitude of the difference between HFD-PALM and CHOW did not, however, significantly interact with cohort ($B = -0.12, SE = 0.12, p = .323$) or with cohort and sex ($B = 0.02, SE = .12, p = .854$). Similarly, HFD-COCO also gained significantly more body weight per day than CHOW ($B = 0.91, SE = 0.12, p < .001$); and the magnitidue of the difference between HFD-COCO and CHOW was significantly greater in males than females ($B = 0.36, SE = 0.12, p = .005$). The magnitude of the difference between HFD-COCO and CHOW did not, however, significantly interact with cohort ($B = -0.12, SE = 0.12, p = .346$) or cohort and sex ($B = 0.23, SE = 0.12, p = .069$).
+
+## Summary, Reference = HFD-PALM
+
+To compare HFD-COCO with HFD-PALM, let's relevel the diet variable to make HFD-PALM the reference group, then refit the model and produce the summary output. (There is no need to rerun the omnibus tests, as the "total" effects are already captured, and thus the output would be identical).
+
+```{r}
+#| label: model-palm
+
+# Relevel factors to change reference group to HFD-VS
+data_palm <- 
+  model_data |>
+  mutate(
+    diet = fct_relevel(diet, "HFD-PALM"), # relevel diet
+  )
+
+# Build the model
+model_palm <- 
+  model |>
+  update(
+    data = data_palm
+  )
+
+# Produce the summary output
+model_palm |> summary()
+```
+
+Across cohorts and across the sexes, although HFD-COCO gained less body weight per day than HFD-PALM, this difference was not statistically significant ($B = -0.18, SE = 0.12, p = .151$); and the magnitude of the difference between HFD-COCO and HFD-PALM (or lack thereof) did not significantly interact with cohort ($B = 0.00, SE = 0.12, p = .977$) or sex ($B = -0.09, SE = 0.12, p = .456$). There was, however, a significant three-way interaction between the comparison between HFD-COCO and HFD-PALM, cohort, and sex ($B = 0.25, SE = 0.12, p = .043$).
+
+or cohort and sex (\$B = )
+
+although the magnitude of this difference was greater in males than females, this difference was also not statistically significant ($B = 0.16, SE = 0.18, p = .363$).
+
+# Communicate
+
+Let's save the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# line plot
+ggsave(
+  plot = line_plot,
+  filename = "output/experiment-3/02-body-weight/01-line-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# bar plot
+ggsave(
+  plot = bar_plot,
+  filename = "output/experiment-3/02-body-weight/02-bar-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# residuals plot
+ggsave(
+  plot = residuals_plot,
+  filename = "output/experiment-3/02-body-weight/03-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# qq plot
+ggsave(
+  plot = qq_plot,
+  filename = "output/experiment-3/02-body-weight/04-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+```
+
+```{r}
+#| label: save-rds-file
+#| eval: false
+
+# Save the bar plot as an rds file to be imported later and arranged into a single multi-panel plot with all the body composition data
+saveRDS(
+  bar_plot,
+  file = "output/experiment-3/05-body-comp-figure/02-body-weight.rds"
+)
+```
+
+# References

@@ -1,0 +1,563 @@
+---
+title: "Experiment 3 - Energy Intake"
+author: "Brent Bachman"
+date: 2025-05-01
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+## Import, tidy, and transform
+
+```{r}
+#| label: mydata
+
+# Create a dataframe
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/experiment-3-statsdata.csv",
+    show_col_types = FALSE
+    ) |>
+  
+  # Select the variables of interest 
+  # EI = energy intake
+  select(id, age, cohort, sex, diet, EI_0:EI_53) |>
+  
+  # Divide cohort B's energy intake values on day 34 by 2 (since they were recorded over two days) 
+  # mutate(
+  #   EI_34 = if_else(cohort == 1, EI_34/2, EI_34)
+  #   ) |>
+  
+  # Tidy data
+  pivot_longer(
+    cols = starts_with("EI"),
+    names_to = "day",
+    values_to = "energy_intake",
+    values_drop_na = TRUE
+    ) |>
+  
+  # Transform data
+  mutate(
+  
+    # Recode categorical variables as factors
+    id = factor(id),
+    cohort = factor(
+      cohort, 
+      levels = c(0, 1),
+      labels = c("Cohort A", "Cohort B")
+    ),
+    sex = factor(
+      sex,
+      levels = c(0, 1),
+      labels = c("Male", "Female")
+      ),
+    diet = factor(
+      diet,
+      levels = c(0, 1, 2),
+      labels = c("CHOW", "HFD-PALM", "HFD-COCO")
+      ),
+    
+    # Recode sex and cohort using sum coding
+    sex_sum    = C(sex, sum),
+    cohort_sum = C(cohort, sum),
+    
+    # Compute time in weeks
+    day = parse_number(day),
+    week = day/7,
+    .before = energy_intake
+    ) |>
+  
+  # Drop na values
+  drop_na()
+
+# View a summary of the data
+summary(mydata)
+```
+
+```{r}
+# Compute the mean and SD of each cohort's age
+mydata |>
+  group_by(cohort) |>
+  summarize(
+    age_m  = mean(age),
+    age_sd = sd(age)
+  )
+```
+
+## Visualize - Line Plot
+
+```{r}
+#| label: line-plot
+
+# Create a line plot of each group's daily energy intake over time
+line_plot <-
+  mydata |>  
+  ggplot(
+    aes(
+      x = week, 
+      y = energy_intake, 
+      color = diet, 
+      shape = diet
+      )
+    ) +
+  
+  # Facet by sex and cohort
+  facet_grid(
+    sex ~ cohort,
+    scales = "free_y"
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "point"
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar"
+    ) +
+  
+  # Plot connecting lines
+  stat_summary(
+    fun = mean,
+    geom = "line"
+    ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange3",
+      "HFD-COCO"  = "darkorchid3"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change y-axis title
+  labs(y = "Energy Intake (kcal)") +
+  
+  # Change x-axis title and scale
+  scale_x_continuous(
+    name = "Time (Weeks)",
+    breaks = seq(from = 0, to = 8, by = 1)) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Rotate and adjust the x-axis tick labels
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 0.5,
+      hjust = 0.5
+      ),
+    legend.position = "top"
+    )
+
+# Show the plot
+line_plot
+```
+
+In both cohorts, the data for CHOW seems pretty flat over time. However, the data for HFD-PALM and, to a lesser degree, HFD-COCO, seem to spike on day 1 then slowly decrease over time. (There is also a peak for all groups around week 5 in cohort B; this is because data was not collected the day before, so those energy intake values are computed over two days).
+
+# Summarize
+
+```{r}
+#| label: model-data
+
+# Create a new dataframe
+model_data <- 
+  
+  # Copy the original dataframe
+  mydata |>
+  
+  # Keep just one observation per subject
+  distinct(
+    id, 
+    .keep_all = TRUE
+  ) |>
+  
+  # Deselect variables of disinterest
+  select(-day, -week, -energy_intake) |>
+  
+  # Join that dataframe to a new dataframe
+  left_join(
+    
+    # Copy the original dataframe
+    mydata |>
+  
+    # filter the dataframe to include only the dietary intervention
+    filter(day > 0) |>
+
+    # Compute each subject's average energy intake across the dietary intervention
+    group_by(id) |>
+    summarize(
+      average_energy_intake = mean(energy_intake)
+    ) |>
+    ungroup(),
+  
+  # join by the key of subject id
+  by = join_by(id)
+  )
+
+# Show a summary of the data
+summary(model_data)
+```
+
+## Visualize - Bar Plot
+
+Let's visualize each group's average energy intake across days 1 to 53.
+
+```{r}
+#| label: bar-plot
+
+# Create a bar plot each group's average energy intake across the entire dietary intervention
+bar_plot <-
+  model_data |>  
+  ggplot(
+    aes(
+      x     = diet, 
+      y     = average_energy_intake, 
+      color = diet, 
+      fill  = diet,
+      shape = diet
+      )
+    ) +
+  
+  # Facet by cohort and sex
+  facet_grid(
+    sex ~ cohort,
+    # scales = "free_y"
+    ) + 
+  
+  # Plot the observed means as points
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    color = "black",
+    ) +
+  
+  # Plot the observed standard errors as errorbars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    color = "black",
+    width = 0.2
+    ) +
+  
+  # Plot individual data points
+  geom_point(
+    position = position_jitter(
+      width = 0.2
+    )
+  ) +
+  
+  # Change color title and scale
+  scale_color_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = "black",
+      "HFD-PALM"  = "darkorange4",
+      "HFD-COCO"  = "darkorchid4"
+      )
+    ) +
+  
+  # Change fill title and scale
+  scale_fill_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"     = "ivory3",
+      "HFD-PALM" = "darkorange2",
+      "HFD-COCO" = "darkorchid2"
+      )
+    ) +
+  
+  # Change shape title and scale
+  scale_shape_manual(
+    name = "Diet",
+    values = c(
+      "CHOW"      = 15,
+      "HFD-PALM"  = 16,
+      "HFD-COCO"  = 17
+      )
+    ) +
+  
+  # Change x-axis title
+  labs(x = "Diet") +
+  
+  # Change y-axis title and scale
+  scale_y_continuous(
+    name = "Average Energy Intake (kcal/day)",
+    limits = c(0, 150),
+    breaks = seq(from = 0, to =  150, by = 25)
+  ) +
+  
+  # Change overall plot theme
+  theme_bw() + 
+  
+  # Remove x-axis title, text, and tick labels
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank()
+    )
+
+# Show the plot
+bar_plot
+```
+
+Consistent with the earlier visualization, average energy intake seems to be greater for HFD-PALM and, perhaps to a *slightly* lesser degree, HFD-COCO, in both sexes in both cohorts.
+
+# Model
+
+To test the effects of sex, diet, and their interaction on average energy intake across the dietary intervention, a multiple linear regression model will be built with the predictors sex (sum-coded: male = 1 and female = -1), diet (treatment-coded: CHOW = 0; HFD-PALM and HFD-COCO = 1), cohort (treatment-coded: Cohort A = 0 and Cohort B = 1), as well as the two- and three-way interactions between each predictor.
+
+```{r}
+#| label: model
+
+# Build the model
+model <- 
+  lm(
+    average_energy_intake ~ cohort_sum * sex_sum * diet, 
+    data = model_data
+  )
+```
+
+## Assumptions
+
+Before I run any statistical tests, let's check how well the model satisfies the assumptions.
+
+First, I need to add the fitted and residual values to the data.
+
+```{r}
+#| label: model-fits
+
+# Add the fitted and residual values to the dataset
+model_fits <- 
+  model_data |>
+  mutate(
+    fits   = c(fitted(model)),
+    resids = c(residuals(model))
+  )
+```
+
+### Linearity and Homoskedasticity
+
+Next, I will create a residuals plot to check for linearity and homoskedasticity.
+
+```{r}
+#| label: residuals-plot
+
+# Create a residuals plot to check for linearity and homoskedasticity
+residuals_plot <-
+  model_fits |>
+  ggplot(
+    aes(x = fits, y = resids)
+  ) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, col = "red") + 
+  
+  # Change aesthetics
+  labs(
+    title = "Residuals vs Predicted Values",
+    x = "Predicted Values",
+    y = "Residuals"
+  ) +
+  theme_bw() 
+
+# Show the plot
+residuals_plot
+```
+
+The data seem to be evenly distributed along the horizontal axis, indicating that the data are approximately linear; and the data seem to deviate along the y-axes (i.e., from the horizontal red line) evenly across the x-axis, indicating that the data are homoskedastic.
+
+### Normality
+
+Next, I will create a QQ plot to check for normality.
+
+```{r}
+#| label: qq-plot
+
+# Create a QQ plot to check for normality
+qq_plot <-
+  model_fits |>
+  ggplot(
+    aes(sample = resids)
+  ) +
+  
+  # Plot boxplots
+  geom_qq() +
+  geom_qq_line(col = "red") +
+  
+  # Change aesthestics
+  labs(
+    title = "Normal QQ Plot",
+    x = "Theoretical",
+    y = "Sample"
+  ) +
+  theme_bw() 
+
+# Show the plot
+qq_plot
+```
+
+The data seem to fall mostly along the red line, indicating that the data are approximately normally distributed.
+
+## Omnibus Tests
+
+With the model built, let's perform omnibus tests for the effects of each predictor using the function "anova()". This function uses type I sum of squares. Thus, it will produce F test statistics for the effects of each predictor entered sequentially (i.e., the residual effect of each predictor after accounting for the effects of all the other predictors entered in the model before it).
+
+```{r}
+# Perform omnibus tests
+model |> anova()
+```
+
+When predicting average energy intake over the course of the dietary intervention, there were significant effects of cohort, $F(1, 62) = 24.42, p < .001$, sex, $F(1, 62) = 222.04, p < .001$, and diet, $F(2, 62) = 19.83, p < .001$. However, after controlling for these predictors, there were not significant effects of the two-way interactions between cohort and sex, $F(1, 62) = 0.00, p = .980$, cohort and diet, $F(2, 62) = 0.63, p = .539$, or sex and diet, $F(2, 62) = 2.08, p = .134$, or of the three-way interaction between cohort, sex, and diet, $F(2, 62) = 1.42, p = .249$.
+
+## Summary, Referece = CHOW
+
+Let's probe these effects by producing the summary output.
+
+```{r}
+# Produce summary output
+model |> summary()
+```
+
+Overall, the model explained 83% of the variance in average energy intake; and, after adjusting for the number of predictors, it explained 80%, $F(11, 62) = 26.76, R^2 = 0.83, R^2_{adj} = 0.80, p < .001$.
+
+Within the male CHOW subjects, cohort B consumed significantly less energy on average per day than cohort A ($B = -12.59, SE = 3.37, p < .001$), probably because they were slightly older ($M_{A} = 110, SD_{A} = 0.58, M_{B} = 152, SD_{B} = 1.14$). However, the difference between the two cohort's CHOW groups was not significantly different between the sexes ($B = 0.54, SE = 3.37, p = .874$); across the sexes, the difference between the two cohorts was not significantly different in either HFD-PALM ($B = 3.05, SE = 4.68, p = .517$) or HFD-COCO ($B = 5.31, SE = 4.77, p = .270$) relative to CHOW; and the magnitude of the cohort differences (or lack thereof) for both HFD-PALM ($B = 2.76, SE = 4.68, p = .558$) and HFD-COCO ($B = 5.06, SE = 4.77, p = .293$) relative to CHOW was not significantly different between the sexes. These results indicate that the cohorts consumed significantly different amounts of energy on average per day across the entire dietary intervention, but the difference is consistent across sex and diet groups.
+
+Across cohorts and across the sexes, both HFD-PALM ($B = 14.26, SE = 2.34, p < .001$) and HFD-COCO ($B = 10.60, SE = 2.38, p < .001$) consumed significantly more energy on average per day than CHOW. The magnitude of the difference between HFD-PALM and CHOW did not significantly interact with cohort ($B = -1.52, SE = 2.34, p = .517$), sex ($B = 4.35, SE = 2.34, p = .068$), or cohort and sex ($B = -1.38, SE = 2.34, p = .558$). The magnitude of the difference between HFD-COCO and CHOW also did not significantly interact with cohort ($B = -2.65, SE = 2.38, p = .270$), sex ($B = 3.76, SE = 2.38, p = .120$), or cohort and sex ($B = 2.53, SE = 2.38, p = .293$).
+
+## Summary, Reference = HFD-PALM
+
+To compare HFD-COCO with HFD-PALM, let's relevel the diet variable to make HFD-PALM the reference group, then refit the model and produce the summary output. (There is no need to rerun the omnibus tests, as the "total" effects are already captured, and thus the output would be identical).
+
+```{r}
+#| label: model-palm
+
+# Relevel factors to change reference group to HFD-VS
+data_palm <- 
+  model_data |>
+  mutate(
+    diet = fct_relevel(diet, "HFD-PALM"), # relevel diet
+  )
+
+# Build the model
+model_palm <- 
+  model |>
+  update(
+    data = data_palm
+  )
+
+# Produce the summary output
+model_palm |> summary()
+```
+
+Across cohorts and across the sexes, although HFD-COCO consumed less energy on average per day than HFD-PALM, this difference was not statistically significant ($B = -3.66, SE = 2.34, p = .123$); and the difference between HFD-COCO and HFD-PALM (or lack thereof) did not significantly interact with cohort ($B = -1.13, SE = 2.34, p = .631$), sex ($B = -0.59, SE = 2.34, p = .803$), or sex and cohort ($B = 3.91, SE = 2.34, p = .100$).
+
+and although the magnitude of this difference (or lack thereof) was smaller in males than females, this difference was also not statistically significant ($B = 3.32, SE = 3.37, p = .329$).
+
+# Communicate
+
+Let's save the plots.
+
+```{r}
+#| label: save-plots
+#| eval: false
+
+# Save the ...
+
+# line plot
+ggsave(
+  plot = line_plot,
+  filename = "output/experiment-3/01-energy-intake/01-line-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# bar plot
+ggsave(
+  plot = bar_plot,
+  filename = "output/experiment-3/01-energy-intake/02-bar-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# residuals plot
+ggsave(
+  plot = residuals_plot,
+  filename = "output/experiment-3/01-energy-intake/03-residuals-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+
+# qq plot
+ggsave(
+  plot = qq_plot,
+  filename = "output/experiment-3/01-energy-intake/04-qq-plot.tiff",
+  width = 6, height = 3.708, units = "in", dpi = 300
+)
+```
+
+```{r}
+#| label: save-rds-file
+#| eval: false
+
+# Save the bar plot as an rds file to be imported later and arranged into a single multi-panel plot with all the body composition data
+saveRDS(
+  bar_plot,
+  file = "output/experiment-3/05-body-comp-figure/01-energy-intake.rds"
+)
+```
+
+# References

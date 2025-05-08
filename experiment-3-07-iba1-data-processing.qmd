@@ -1,0 +1,471 @@
+---
+title: "Experiment 3 - iba1 data processing"
+author: "Brent Bachman"
+date: 2025-05-02
+
+editor: visual
+editor_options: 
+  chunk_output_type: console
+bibliography: references.bib
+
+format: gfm
+toc: true
+number-sections: true
+fig-format: png
+fig-width: 6
+fig-asp: 0.618
+fig-align: center
+fig-dpi: 300
+---
+
+# Packages
+
+```{r}
+#| label: load-packages
+#| output: false
+
+library("tidyverse")
+```
+
+```{r}
+#| label: install-packages
+#| eval: false
+
+# install.packages("tidyverse")
+```
+
+```{r}
+#| label: session-info
+sessionInfo()
+```
+
+# Data
+
+```{r}
+#| label: mydata
+
+# Create a dataframe called mydata
+mydata <- 
+  
+  # Import the data
+  read_csv(
+    file ="data/iba1-data/experiment-3-iba1-data.csv",
+    show_col_types = FALSE
+    ) |> 
+  
+  # Separate the slice string into components by the delimiter "_"
+  separate_wider_delim(
+    cols = Slice, 
+    delim = "_",
+    names = c("id", "region_slice", NA, "signal_type")
+  ) |>
+  
+  # Create three new columns
+  # one for the slice number
+  # one for the brain region (D = dorsal hippocampus and h = hypothalamus)
+  # one for cell type (1 = H, 2 = DAB)
+  mutate(
+    brain_region = str_sub(region_slice, 1, 1),
+    slice_number = parse_number(region_slice),
+    signal_type = parse_number(signal_type),
+    .before = Count
+  ) |> 
+  
+  # Deselect variables of disinterest
+  select(-region_slice, -"%Area")
+
+# Show a summary of the dataframe
+summary(mydata)
+```
+
+```{r}
+#| label: hema-data
+
+# Create a new dataframe called "hema_data"
+hema_data <-
+  
+  # Copy the original dataframe
+  mydata |>
+  
+  # Filter to include just the hematoxylin data
+  filter(signal_type == "1") |>
+  
+  # Rename the cell counts to be hematoxylin specific
+  rename(
+    hema_area  = "Total Area"
+  ) |>
+  
+  # Deselect signal type
+  select(-signal_type, -"Count", -"Average Size")
+
+# Show a summary of the data
+summary(hema_data)
+```
+
+```{r}
+#| label: iba1-data
+
+# Create a new dataframe called "iba1_data"
+iba1_data <-
+  
+  # Copy the original dataframe
+  mydata |>
+  
+  # Filter to include just the iba1 data
+  filter(signal_type == "2") |>
+  
+  # Rename the cell counts to be iba1 specific
+  rename(
+    iba1_number  = Count,
+    iba1_size    = "Average Size"
+  ) |>
+  
+  # Deselect signal type
+  select(-signal_type, -"Total Area")
+
+# Show a summary of the data
+summary(iba1_data)
+```
+
+```{r}
+#| label: density-data
+
+# Create a new dataframe called "density_data"
+density_data <-
+  
+  # Copy the hematoxylin dataframe
+  hema_data |>
+  
+  # Join the iba1 dataframe to the hematoxylin dataframe
+  left_join(
+    iba1_data, 
+    by = join_by(id, brain_region, slice_number) 
+    ) |>
+  
+  # Compute iba1 cell density (in cells per mm^3)
+  mutate(
+    iba1_density = iba1_number / (hema_area * 40 / 1e9)
+  )
+
+# Show a summary of the data
+summary(density_data)
+```
+
+# Visualize
+
+```{r}
+#| label: plot-number
+
+# Call the iba1 dataframe
+density_data |>
+  
+  # Plot each subject's iba1 cell number over slices to visualize potential outliers
+  ggplot(
+    aes(
+      x = slice_number, 
+      y = iba1_number, 
+      linetype = brain_region
+      )
+    ) +
+  
+  # Facet by id
+  facet_wrap(vars(id)) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot connecting lines
+  geom_line()
+```
+
+It looks like subject 17's DH slice 4 is higher than the rest of their DH slices. I looked at the image and the signal seems to be legitimately higher, so we'll leave it. Same story for subject 6's ARC slice 2.
+
+```{r}
+#| label: plot-size
+
+# Call the iba1 dataframe
+density_data |>
+  
+  # Plot each subject's iba1 cell size over slices to visualize potential outliers
+  ggplot(
+    aes(
+      x = slice_number, 
+      y = iba1_size, 
+      linetype = brain_region
+      )
+    ) +
+  
+  # Facet by id
+  facet_wrap(vars(id)) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot connecting lines
+  geom_line()
+```
+
+Subject 35's DH slice 1 is way higher than every other slice across all subjects. It's so high that it is throwing off the scale. I took a look at the image and it seems that there is almost no DAB signal on that slice, so the thresholding step was erroneous. Let's exclude the slice.
+
+```{r}
+#| label: density-data-2
+
+# Identify the row number of the outlier identified above
+outlier_row <-
+  density_data |>
+  with(which(id == 35 & brain_region == "D" & slice_number == 1))
+
+# Create a new dataframe excluding the row number of that outlier
+density_data_2 <-
+  density_data |>
+  slice(-c(outlier_row))
+
+# Show a summary of the dataframe
+summary(density_data_2)
+```
+
+Let's replot the size data.
+
+```{r}
+#| label: plot-size-2
+
+# Call the iba1 dataframe
+density_data_2 |>
+  
+  # Plot each subject's iba1 cell size over slices to visualize potential outliers
+  ggplot(
+    aes(
+      x = slice_number, 
+      y = iba1_size, 
+      linetype = brain_region
+      )
+    ) +
+  
+  # Facet by id
+  facet_wrap(vars(id)) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot connecting lines
+  geom_line()
+```
+
+```{r}
+#| label: plot-area-2
+
+# Call the iba1 dataframe
+density_data_2 |>
+  
+  # Plot each subject's iba1 cell density over slices to visualize potential outliers
+  ggplot(
+    aes(
+      x = slice_number, 
+      y = hema_area, 
+      linetype = brain_region
+      )
+    ) +
+  
+  # Facet by id
+  facet_wrap(vars(id)) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot connecting lines
+  geom_line()
+```
+
+```{r}
+#| label: plot-density-2
+
+# Call the iba1 dataframe
+density_data_2 |>
+  
+  # Plot each subject's iba1 cell density over slices to visualize potential outliers
+  ggplot(
+    aes(
+      x = slice_number, 
+      y = iba1_density, 
+      linetype = brain_region
+      )
+    ) +
+  
+  # Facet by id
+  facet_wrap(vars(id)) +
+  
+  # Plot individual data points
+  geom_point() +
+  
+  # Plot connecting lines
+  geom_line()
+```
+
+There does not appear to be any extreme outliers. Let's summarize the data.
+
+```{r}
+#| label: summary_data
+
+# Create a new dataframe called "summary_data"
+summary_data <-
+  
+  # Copy the "density_data" dataframe
+  density_data |>
+  
+  # Grouped by subject id and brain region, compute the mean (avg), standard deviation (SD), and coefficient of variation (CV) for the number of hematoxylin stained cells, the number of iba1+ cells, and the iba1+ cell density across slices, as well as the number of slices counted, for each subject,
+  group_by(id, brain_region) |>
+  summarise(
+    
+    # Hematoxylin cells
+    hema_area_avg = mean(hema_area),
+    hema_area_sd  = sd(hema_area),
+    hema_area_cv  = hema_area_sd / hema_area_avg * 100,
+    
+    # Iba1+ cells
+    iba1_number_avg = mean(iba1_number),
+    iba1_number_sd  = sd(iba1_number),
+    iba1_number_cv  = iba1_number_sd / iba1_number_avg * 100,
+    
+    # Iba1+ cell density
+    iba1_density_avg = mean(iba1_density),
+    iba1_density_sd  = sd(iba1_density),
+    iba1_density_cv  = iba1_density_sd / iba1_density_avg * 100,
+      
+    # Number of slices
+    slices_counted = n()
+  ) |>
+  ungroup()
+
+# Show a summary of the data
+summary(summary_data)
+```
+
+```{r}
+#| label: arc-data
+
+# Create a new dataframe called "arc_data
+arc_data <-
+  
+  # Copy the "summary_data" dataframe
+  summary_data |> 
+  
+  # Filter the dataframe to include only the brain region arc (arc = arcuate nucleus)
+  filter(brain_region == "h") |>
+  
+  # Deselect the variable "brain_region", as it is no longer necessary
+  select(-brain_region) |>
+  
+  # Rename the columns to be arc specific
+  rename(
+    
+    # Hematoxylin area
+    arc_hema_area_avg = hema_area_avg,
+    arc_hema_area_sd  = hema_area_sd,
+    arc_hema_area_cv  = hema_area_cv,
+    
+    # Iba1 cells
+    arc_iba1_number_avg = iba1_number_avg,
+    arc_iba1_number_sd  = iba1_number_sd,
+    arc_iba1_number_cv  = iba1_number_cv,
+    
+    # Iba1 density
+    arc_iba1_density_avg = iba1_density_avg,
+    arc_iba1_density_sd  = iba1_density_sd,
+    arc_iba1_density_cv  = iba1_density_cv,
+    
+    # Slices counts
+    arc_slices_counted = slices_counted
+  )
+
+# Show a summary of the data
+summary(arc_data)
+```
+
+```{r}
+#| label: ca1-data
+
+# Create a new dataframe called "ca1_data
+ca1_data <-
+  
+  # Copy the "summary_data" dataframe
+  summary_data |> 
+  
+  # Filter the dataframe to include only the brain region ca1 (of the hippocampus)
+  filter(brain_region == "D") |>
+  
+  # Deselect the variable "brain_region", as it is no longer necessary
+  select(-brain_region) |>
+  
+  # Rename the columns to be ca1 specific
+  rename(
+    
+    # Hematoxylin area
+    ca1_hema_area_avg = hema_area_avg,
+    ca1_hema_area_sd  = hema_area_sd,
+    ca1_hema_area_cv  = hema_area_cv,
+    
+    # Iba1 cells
+    ca1_iba1_number_avg = iba1_number_avg,
+    ca1_iba1_number_sd  = iba1_number_sd,
+    ca1_iba1_number_cv  = iba1_number_cv,
+    
+    # Iba1 density
+    ca1_iba1_density_avg = iba1_density_avg,
+    ca1_iba1_density_sd  = iba1_density_sd,
+    ca1_iba1_density_cv  = iba1_density_cv,
+    
+    # Slices counts
+    ca1_slices_counted = slices_counted
+  )
+
+# Show a summary of the data
+summary(ca1_data)
+```
+
+```{r}
+#| label: iba1-data-processed
+
+# Create a new dataframe called "iba1_data_processed"
+iba1_data_processed <-
+  
+  # Copy the "arc_data" dataframe
+  arc_data |>
+  
+  # Join the "ca1_data" dataframe to the "arc_data" dataframe by the key subject id
+  left_join(ca1_data, by = join_by(id)) |>
+  
+  # Convert id to numeric
+  mutate(id = as.numeric(id))
+
+# Show a summary of the data
+summary(iba1_data_processed)
+```
+
+The mean number of ARC slices counted is 3.94; and the mean CV for ARC iba1 cell density is 26.89%.The mean number of CA1 slices counted is 3.47; and the mean CV for CA1 iba1 cell density is 31.01%.
+
+```{r}
+#| label: statsdata-iba1
+
+# Create a new dataframe
+statsdata_iba1 <-
+  
+  # Import the current stats data frame
+  read_csv(
+    file ="data/experiment-3-statsdata.csv",
+    show_col_types = FALSE
+    ) |> 
+  
+  # Join the iba1 processed data to the stats data frame
+  left_join(iba1_data_processed, by = join_by(id))
+```
+
+```{r}
+#| label: statsdata-iba1-save
+#| eval: false
+
+# Save the stats data frame    
+write_csv(
+  statsdata_iba1, 
+  file = "data/experiment-3-statsdata-iba1.csv" 
+  )
+```
